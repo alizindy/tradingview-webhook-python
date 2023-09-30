@@ -1,6 +1,6 @@
 # import os
 from flask import Flask, request, jsonify
-from binance.client import Client
+# from binance.client import Client
 # from dotenv import load_dotenv
 
 # load_dotenv()
