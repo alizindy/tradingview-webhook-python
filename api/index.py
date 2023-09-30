@@ -13,6 +13,11 @@ client = Client(API_KEY, API_SECRET, tld="com", testnet=True)
 client.API_URL = 'https://testnet.binancefuture.com'
 
 
+@app.route("/")
+def home():
+    return "HELLO WORLD from VERCEL by Flask2 !"
+
+
 @app.route("/webhook", methods=["POST"])
 def handle_webhook():
     data = request.get_json()
