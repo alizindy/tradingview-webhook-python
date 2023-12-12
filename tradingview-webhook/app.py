@@ -255,6 +255,11 @@ def order_2():
     high = float(message['high'])
     low = float(message['low'])
 
+    s1 = float(message['s1'])
+    s3 = float(message['s3'])
+    r1 = float(message['r1'])
+    r3 = float(message['r3'])
+
     if minqty > 0:
 
         if opentrades > 0:
@@ -302,7 +307,7 @@ def order_2():
                                          type="MARKET", quantity=round(minqty, 3))
 
                     # Open
-                    if int(message['openbar']) >= 1 or abs(float(usdt_p_s[0]['positionAmt'])) == 0 or float(usdt_p_s[0]['unRealizedProfit']) > 0:
+                    if int(message['openbar']) >= 1 or abs(float(usdt_p_s[0]['positionAmt'])) == 0 or float(usdt_p_s[0]['unRealizedProfit']) > 0 or abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty*2)-0.001:
                         if (abs(float(usdt_p_l[0]['positionAmt'])) < opentrades*minqty):
                             if int(str(message['openbar'])) < 8 or mark_price < float(message['openprice']) or (abs(float(usdt_p_s[0]['positionAmt'])) > 0) or (abs(float(usdt_p_l[0]['positionAmt'])) == 0 and opentrades >= 2) or (abs(float(usdt_p_l[0]['positionAmt'])) == 0 and (float(message['rsi']) <= 30 or float(message['rsi15']) <= 30)):
                                 if abs(float(usdt_p_l[0]['positionAmt'])) == 0:
@@ -316,11 +321,11 @@ def order_2():
                                     client.new_order(symbol=symbol, positionSide=positionSide, side=(
                                         "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
                                 elif (abs(float(usdt_p_l[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
-                                    if float(message['rsi15']) <= 30 or float(message['rsiMA15']) <= 30 or mark_price < float(message['openprice'])+50 or opentrades > 2:
+                                    if float(message['rsi15']) <= 30 or float(message['rsiMA15']) <= 30 or mark_price < s1 or r1 < float(usdt_p_l[0]['entryPrice']):
                                         client.new_order(symbol=symbol, positionSide=positionSide, side=(
                                             "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
                                 elif (abs(float(usdt_p_l[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
-                                    if ((float(message['rsi15']) <= 30 or float(message['rsiMA15']) <= 30) and (float(message['rsi']) <= 50 or float(message['rsiMA']) <= 50)) or mark_price < float(message['openprice']):
+                                    if float(message['rsi']) <= 30 or float(message['rsiMA']) <= 30 or mark_price < s3 or r3 < float(usdt_p_l[0]['entryPrice']):
                                         client.new_order(symbol=symbol, positionSide=positionSide, side=(
                                             "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
 
@@ -361,7 +366,7 @@ def order_2():
                         client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
                                          type="MARKET", quantity=round(minqty, 3))
 
-                    if int(message['openbar']) >= 1 or abs(float(usdt_p_l[0]['positionAmt'])) == 0 or float(usdt_p_l[0]['unRealizedProfit']) > 0:
+                    if int(message['openbar']) >= 1 or abs(float(usdt_p_l[0]['positionAmt'])) == 0 or float(usdt_p_l[0]['unRealizedProfit']) > 0 or abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty*2)-0.001:
                         if (abs(float(usdt_p_s[0]['positionAmt'])) < opentrades*minqty):
                             if int(str(message['openbar'])) < 8 or mark_price > float(message['openprice']) or (abs(float(usdt_p_l[0]['positionAmt'])) > 0) or (abs(float(usdt_p_s[0]['positionAmt'])) == 0 and opentrades >= 2) or (abs(float(usdt_p_s[0]['positionAmt'])) == 0 and (float(message['rsi']) >= 70 or float(message['rsi15']) >= 70)):
                                 if abs(float(usdt_p_s[0]['positionAmt'])) == 0:
@@ -375,11 +380,11 @@ def order_2():
                                     client.new_order(symbol=symbol, positionSide=positionSide, side=(
                                         "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
                                 elif (abs(float(usdt_p_s[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
-                                    if float(message['rsi15']) >= 70 or float(message['rsiMA15']) >= 70 or mark_price > float(message['openprice'])-50 or opentrades > 2:
+                                    if float(message['rsi15']) >= 70 or float(message['rsiMA15']) >= 70 or mark_price > r1 or s1 > float(usdt_p_s[0]['entryPrice']):
                                         client.new_order(symbol=symbol, positionSide=positionSide, side=(
                                             "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
                                 elif (abs(float(usdt_p_s[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
-                                    if ((float(message['rsi15']) >= 70 or float(message['rsiMA15']) >= 70) and (float(message['rsi']) >= 50 or float(message['rsiMA']) >= 50)) or mark_price > float(message['openprice']):
+                                    if float(message['rsi']) >= 70 or float(message['rsiMA']) >= 70 or mark_price > r3 or s3 > float(usdt_p_s[0]['entryPrice']):
                                         client.new_order(symbol=symbol, positionSide=positionSide, side=(
                                             "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
 
@@ -396,12 +401,12 @@ def order_2():
                                      type="MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
 
         if abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty*2)-0.001 and abs(float(usdt_p_s[0]['positionAmt'])) < (minqty*3)-0.001 and abs(float(usdt_p_l[0]['positionAmt'])) == 0:
-            if float(message['rsiMA15']) <= 30 or (float(message['rsiMA15']) <= 40 and float(message['rsi15']) <= 30):
+            if float(message['rsiMA15']) <= 30 or (float(message['rsiMA15']) <= 35 and float(message['rsi15']) <= 30):
                 client.cancel_open_orders(symbol=symbol)
                 client.new_order(symbol=symbol, positionSide="LONG",
                                  side="BUY", type="MARKET", quantity=round(minqty, 3))
         if abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty*2)-0.001 and abs(float(usdt_p_l[0]['positionAmt'])) < (minqty*3)-0.001 and abs(float(usdt_p_s[0]['positionAmt'])) == 0:
-            if float(message['rsiMA15']) >= 70 or (float(message['rsiMA15']) >= 60 and float(message['rsi15']) >= 70):
+            if float(message['rsiMA15']) >= 70 or (float(message['rsiMA15']) >= 65 and float(message['rsi15']) >= 70):
                 client.cancel_open_orders(symbol=symbol)
                 client.new_order(symbol=symbol, positionSide="SHORT",
                                  side="SELL", type="MARKET", quantity=round(minqty, 3))
