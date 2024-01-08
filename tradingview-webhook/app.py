@@ -47,6 +47,43 @@ def check_time_ms():
     return {'current_ms': current_milliseconds, 'current_date': current_date, 'servertime_ms': servertime_ms, 'servertime_date': servertime_date}
 
 
+def cors_preflight():
+    return {'statusCode': 200, 'headers': {'Content-Type': 'application/json'}}
+
+
+@app.route('/check-history-position', methods=['POST', 'OPTION'], cors=True)
+def check_history_position():
+    request = app.current_request
+    message = request.json_body
+    symbol = "ETHUSDT"
+
+    start_time_str = message.get('start_time')
+    end_time_str = message.get('end_time')
+
+    if start_time_str is not None:
+        start_time = datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        end_time = datetime.strptime(end_time_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        startTime = int(start_time.timestamp() * 1000)
+        endTime = int(end_time.timestamp() * 1000)
+        print(start_time_str)
+        print(end_time)
+    else:
+        start_time = None
+        end_time = None
+
+    api_use = None
+    for obj in data:
+        if 'key' in obj and obj['key'] == message['key']:
+            api_use = obj
+            break
+
+    client = UMFutures(api_use['key'], api_use['secret'])
+    if start_time_str is not None:
+        return client.get_account_trades(symbol=symbol, startTime=startTime, endTime=endTime)
+    else:
+        return client.get_account_trades(symbol=symbol, limit=1000)
+
+
 @app.route('/testing_place_stopprice', methods=["POST"])
 def testing_place_stopprice():
 
@@ -209,6 +246,274 @@ def get_account_balance_info():
     }
 
 
+# @app.route("/order-MRMFRS-v1", methods=["POST"])
+# def order_1():
+
+#     request = app.current_request
+#     message = request.json_body
+
+#     api_use = None
+#     for obj in data:
+#         if 'key' in obj and obj['key'] == message['key']:
+#             api_use = obj
+#             break
+
+#     client = UMFutures(api_use['key'], api_use['secret'])
+
+#     leverage = 1
+#     symbol = message['symbol']
+#     balance = client.balance()
+#     position_risk = client.get_position_risk(symbol=symbol)
+#     usdt_b = list(filter(lambda x: (x['asset'] == "USDT") if "USDT" in symbol else (x['asset'] == "BUSD"), balance))[
+#         0]['balance']
+
+#     usdt_p_l = list(filter(
+#         lambda x: x['symbol'] == symbol and x['positionSide'] == "LONG", position_risk))
+#     usdt_p_s = list(filter(
+#         lambda x: x['symbol'] == symbol and x['positionSide'] == "SHORT", position_risk))
+
+#     if len(usdt_p_l) > 0:
+#         mark_price = float(message['close']) if ('close' in message and float(
+#             usdt_p_l[0]['markPrice']) == 0) else float(usdt_p_l[0]['markPrice'])
+#     elif len(usdt_p_s) > 0:
+#         mark_price = float(message['close']) if ('close' in message and float(
+#             usdt_p_s[0]['markPrice']) == 0) else float(usdt_p_s[0]['markPrice'])
+#     else:
+#         mark_price = 0
+#     minqty = 0 if mark_price == 0 else round(
+#         (float(usdt_b)*0.3) / (mark_price/leverage), 3)
+
+#     opentrades = int(str(message['opentrades']))
+#     isOpen = False
+
+#     rsiMAState = message['rsiMAState']
+
+#     highest = float(message['highest'])
+#     lowest = float(message['lowest'])
+#     high = float(message['high'])
+#     low = float(message['low'])
+
+#     s1 = float(message['s1'])
+#     s3 = float(message['s3'])
+#     r1 = float(message['r1'])
+#     r3 = float(message['r3'])
+#     rt = float(message['rt'])
+#     sp = float(message['sp'])
+#     pmop = float(message['pmop'])
+#     s3op = float(message['s3op'])
+#     r3op = float(message['r3op'])
+#     pass_s3 = float(message['pass_s3'])
+#     pass_r3 = float(message['pass_r3'])
+#     pmeanline = float(message['pmeanline'])
+
+#     current_milliseconds = int(time.time() * 1000)
+#     order_history = client.get_all_orders(
+#         symbol=symbol, startTime=current_milliseconds-(1000*60*60*24))
+#     new_orders = []
+#     filled_orders = []
+
+#     minute_limit = 5
+#     max_profit_check = 0.6
+#     unRealizedProfitPercentLongCheck = 0
+#     unRealizedProfitPercentShortCheck = 0
+#     unRealizedProfitPercentLong = 0
+#     unRealizedProfitPercentShort = 0
+
+#     openorderLong = abs(float(usdt_p_l[0]["positionAmt"])) > 0
+#     lastopenLongTime = 0
+#     openorderShort = abs(float(usdt_p_s[0]["positionAmt"])) > 0
+#     lastopenShortTime = 0
+
+#     # LONG_STOP_PRICE
+#     if isinstance(order_history, list) and len(order_history) > 0 and openorderLong:
+#         new_orders = [
+#             order for order in order_history if ((order.get("status") == "NEW" or order.get("status") == "CANCELED") and order.get("positionSide") == "LONG")]
+#         filled_orders = [
+#             order for order in order_history if (order.get("status") == "FILLED" and order.get("positionSide") == "LONG")]
+#         if len(filled_orders) > 0:
+#             lastopenLongTime = filled_orders[-1]["time"]
+#             if len(filled_orders) > 0 and current_milliseconds - filled_orders[-1]["time"] > (minute_limit*60*1000):
+#                 unRealizedProfit = float(usdt_p_l[0]["unRealizedProfit"])
+#                 isolatedWallet = float(usdt_p_l[0]["isolatedWallet"])
+#                 if isolatedWallet > 0:
+#                     unRealizedProfitPercentLong = unRealizedProfit * \
+#                         100 / isolatedWallet
+
+#     # SHORT_STOP_PRICE
+#     if isinstance(order_history, list) and len(order_history) > 0 and openorderShort:
+#         new_orders = [
+#             order for order in order_history if ((order.get("status") == "NEW" or order.get("status") == "CANCELED") and order.get("positionSide") == "SHORT")]
+#         filled_orders = [
+#             order for order in order_history if (order.get("status") == "FILLED" and order.get("positionSide") == "SHORT")]
+#         if len(filled_orders) > 0:
+#             lastopenShortTime = filled_orders[-1]["time"]
+#             if len(filled_orders) > 0 and current_milliseconds - filled_orders[-1]["time"] > (minute_limit*60*1000):
+#                 unRealizedProfit = float(usdt_p_s[0]["unRealizedProfit"])
+#                 isolatedWallet = float(usdt_p_s[0]["isolatedWallet"])
+#                 if isolatedWallet > 0:
+#                     unRealizedProfitPercentShort = unRealizedProfit * \
+#                         100 / isolatedWallet
+
+#     if minqty > 0:
+
+#         if opentrades > 0:
+
+#             positionSide = message['positionSide']
+#             barstatus = message['barstatus']
+
+#             if 'livebar' in message:
+
+#                 unRealizedProfitPercentOpenningShort = 0
+#                 unRealizedProfitOpenningShort = float(
+#                     usdt_p_s[0]["unRealizedProfit"])
+#                 isolatedWalletOpenningShort = float(
+#                     usdt_p_s[0]["isolatedWallet"])
+#                 if isolatedWalletOpenningShort > 0:
+#                     unRealizedProfitPercentOpenningShort = unRealizedProfitOpenningShort * \
+#                         100 / isolatedWalletOpenningShort
+
+#                 unRealizedProfitPercentOpenningLong = 0
+#                 unRealizedProfitOpenningLong = float(
+#                     usdt_p_l[0]["unRealizedProfit"])
+#                 isolatedWalletOpenningLong = float(
+#                     usdt_p_l[0]["isolatedWallet"])
+#                 if isolatedWalletOpenningLong > 0:
+#                     unRealizedProfitPercentOpenningLong = unRealizedProfitOpenningLong * \
+#                         100 / isolatedWalletOpenningLong
+
+#                 if positionSide == "LONG":
+
+#                     # Close
+#                     quantityclose = 0
+#                     if abs(float(usdt_p_s[0]['positionAmt'])) > 0:
+#                         if int(message['openbar']) >= 1 or float(usdt_p_s[0]['unRealizedProfit']) > 0:
+#                             if unRealizedProfitPercentOpenningShort > 0.3:
+#                                 unRealizedProfitPercent = 0
+#                                 unRealizedProfit = float(
+#                                     usdt_p_s[0]["unRealizedProfit"])
+#                                 isolatedWallet = float(
+#                                     usdt_p_s[0]["isolatedWallet"])
+#                                 if isolatedWallet > 0:
+#                                     unRealizedProfitPercent = unRealizedProfit * \
+#                                         100 / isolatedWallet
+#                                 if unRealizedProfitPercent >= 0.1:
+#                                     quantityclose = abs(float(
+#                                         usdt_p_s[0]['positionAmt'])) if unRealizedProfitPercent <= 0.6 else round(minqty, 3)
+#                             else:
+#                                 if lastopenShortTime != 0 and current_milliseconds - lastopenShortTime >= 7.5*60*1000:
+#                                     quantityclose = minqty
+
+#                             if quantityclose > 0:
+#                                 client.cancel_open_orders(symbol=symbol)
+#                                 client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
+#                                                  type="MARKET", quantity=round(quantityclose, 3))
+
+#                     # Open
+#                     if int(message['openbar']) >= 1 or abs(float(usdt_p_s[0]['positionAmt'])) == 0 or float(usdt_p_s[0]['unRealizedProfit']) > 0 or abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty*2)-0.001:
+#                         if (abs(float(usdt_p_l[0]['positionAmt'])) < opentrades*minqty):
+#                             if int(str(message['openbar'])) < 8 or (rsiMAState == "UP" and float(message['rsi']) > float(message['rsiMA'])) or (barstatus == "UP" and mark_price < r1) or mark_price < float(message['openprice']) or (abs(float(usdt_p_s[0]['positionAmt'])) > 0) or (abs(float(usdt_p_l[0]['positionAmt'])) == 0 and opentrades >= 2) or (abs(float(usdt_p_l[0]['positionAmt'])) == 0 and (float(message['rsi']) <= 30 or float(message['rsi15']) <= 30)):
+#                                 if abs(float(usdt_p_l[0]['positionAmt'])) == 0:
+#                                     client.cancel_open_orders(symbol=symbol)
+#                                     client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                         "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                                 elif (abs(float(usdt_p_l[0]['positionAmt'])) < 0.5*minqty and opentrades >= 1):
+#                                     leftQty = minqty - \
+#                                         abs(float(usdt_p_l[0]['positionAmt']))
+#                                     client.cancel_open_orders(symbol=symbol)
+#                                     client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                         "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
+#                                 elif (abs(float(usdt_p_l[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
+#                                     if s3 > pmop or r3 < pmop or float(message['rsi']) <= 30 or (opentrades > 2 and (float(message['rsi']) <= 50 or mark_price < pmeanline)) or (pass_s3 and mark_price < s1) or float(message['rsiMA']) <= 30 or unRealizedProfitPercentOpenningLong >= 1.2 or (unRealizedProfitPercentOpenningShort < -0.6):
+#                                         # if float(message['rsi15']) <= 30 or float(message['rsiMA15']) <= 30 or opentrades > 2 or mark_price < s3 or (unRealizedProfitPercentOpenningLong >= 0.6 and mark_price > r1):
+#                                         client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                             "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                                 elif (abs(float(usdt_p_l[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
+#                                     if s3 > r3op or r3 < s3op or unRealizedProfitPercentOpenningLong >= 1.8:
+#                                         # if float(message['rsi']) <= 30 or float(message['rsiMA']) <= 30 or (unRealizedProfitPercentOpenningLong >= 0.6 and mark_price > r3):
+#                                         client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                             "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+
+#                 if positionSide == "SHORT":
+
+#                     # Close
+#                     quantityclose = 0
+#                     if abs(float(usdt_p_l[0]['positionAmt'])) > 0:
+#                         if int(message['openbar']) >= 1 or float(usdt_p_l[0]['unRealizedProfit']) > 0:
+#                             if unRealizedProfitPercentOpenningLong > 0.3:
+#                                 unRealizedProfitPercent = 0
+#                                 unRealizedProfit = float(
+#                                     usdt_p_l[0]["unRealizedProfit"])
+#                                 isolatedWallet = float(
+#                                     usdt_p_l[0]["isolatedWallet"])
+#                                 if isolatedWallet > 0:
+#                                     unRealizedProfitPercent = unRealizedProfit * \
+#                                         100 / isolatedWallet
+#                                 if unRealizedProfitPercent >= 0.1:
+#                                     quantityclose = abs(float(
+#                                         usdt_p_l[0]['positionAmt'])) if unRealizedProfitPercent <= 0.6 else round(minqty, 3)
+#                             else:
+#                                 if lastopenLongTime != 0 and current_milliseconds - lastopenLongTime >= 7.5*60*1000:
+#                                     quantityclose = minqty
+
+#                             if quantityclose > 0:
+#                                 client.cancel_open_orders(symbol=symbol)
+#                                 client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
+#                                                  type="MARKET", quantity=round(quantityclose, 3))
+
+#                     # OPEN
+#                     if int(message['openbar']) >= 1 or abs(float(usdt_p_l[0]['positionAmt'])) == 0 or float(usdt_p_l[0]['unRealizedProfit']) > 0 or abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty*2)-0.001:
+#                         if (abs(float(usdt_p_s[0]['positionAmt'])) < opentrades*minqty):
+#                             if int(str(message['openbar'])) < 8 or (rsiMAState == "DOWN" and float(message['rsi']) < float(message['rsiMA'])) or (barstatus == "DOWN" and mark_price > s1) or mark_price > float(message['openprice']) or (abs(float(usdt_p_l[0]['positionAmt'])) > 0) or (abs(float(usdt_p_s[0]['positionAmt'])) == 0 and opentrades >= 2) or (abs(float(usdt_p_s[0]['positionAmt'])) == 0 and (float(message['rsi']) >= 70 or float(message['rsi15']) >= 70)):
+#                                 if abs(float(usdt_p_s[0]['positionAmt'])) == 0:
+#                                     client.cancel_open_orders(symbol=symbol)
+#                                     client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                         "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                                 elif (abs(float(usdt_p_s[0]['positionAmt'])) < 0.5*minqty and opentrades >= 1):
+#                                     leftQty = minqty - \
+#                                         abs(float(usdt_p_s[0]['positionAmt']))
+#                                     client.cancel_open_orders(symbol=symbol)
+#                                     client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                         "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
+#                                 elif (abs(float(usdt_p_s[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
+#                                     if s3 > pmop or r3 < pmop or float(message['rsi']) >= 70 or (opentrades > 2 and (float(message['rsi']) >= 50 or mark_price > pmeanline)) or (pass_r3 and mark_price > r1) or float(message['rsiMA']) >= 70 or unRealizedProfitPercentOpenningShort >= 1.2 or (unRealizedProfitPercentOpenningLong < -0.6):
+#                                         # if float(message['rsi15']) >= 70 or float(message['rsiMA15']) >= 70 or opentrades > 2 or mark_price > r3 or (unRealizedProfitPercentOpenningShort >= 0.6 and mark_price < s1):
+#                                         client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                             "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                                 elif (abs(float(usdt_p_s[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
+#                                     if s3 > r3op or r3 < s3op or unRealizedProfitPercentOpenningShort >= 1.8:
+#                                         # if float(message['rsi']) >= 70 or float(message['rsiMA']) >= 70 or (unRealizedProfitPercentOpenningShort >= 0.6 and mark_price < s3):
+#                                         client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                             "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+
+#         else:
+
+#             unRealizedProfitOpenningLong = float(
+#                 usdt_p_l[0]["unRealizedProfit"])
+#             isolatedWalletOpenningLong = float(usdt_p_l[0]["isolatedWallet"])
+#             if isolatedWalletOpenningLong > 0:
+#                 unRealizedProfitPercentOpenningLong = unRealizedProfitOpenningLong * \
+#                     100 / isolatedWalletOpenningLong
+
+#             unRealizedProfitOpenningShort = float(
+#                 usdt_p_s[0]["unRealizedProfit"])
+#             isolatedWalletOpenningShort = float(usdt_p_s[0]["isolatedWallet"])
+#             if isolatedWalletOpenningShort > 0:
+#                 unRealizedProfitPercentOpenningShort = unRealizedProfitOpenningShort * \
+#                     100 / isolatedWalletOpenningShort
+
+#             # CLOSE
+#             if abs(float(usdt_p_l[0]['positionAmt'])) > 0:
+#                 if unRealizedProfitOpenningLong >= 0.45 or (unRealizedProfitOpenningLong > 0 and ('forceclose' in message and float(message['forceclose']) == 2)):
+#                     client.cancel_open_orders(symbol=symbol)
+#                     client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
+#                                      type="MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
+#             if abs(float(usdt_p_s[0]['positionAmt'])) > 0:
+#                 if unRealizedProfitOpenningShort >= 0.45 or (unRealizedProfitOpenningShort > 0 and ('forceclose' in message and float(message['forceclose']) == 1)):
+#                     client.cancel_open_orders(symbol=symbol)
+#                     client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
+#                                      type="MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+
+
 @app.route("/order-MRMFRS", methods=["POST"])
 # Mean Reversal + MACD + Fibonacci + Resistance and Support
 def order_2():
@@ -250,15 +555,34 @@ def order_2():
     opentrades = int(str(message['opentrades']))
     isOpen = False
 
+    rsiMAState = message['rsiMAState']
+    pmeanlineState = message['pmeanlineState']
+
     highest = float(message['highest'])
     lowest = float(message['lowest'])
     high = float(message['high'])
     low = float(message['low'])
+    openprice = float(message['open'])
+    close = float(message['close'])
+    openbar = int(message['openbar'])
 
     s1 = float(message['s1'])
     s3 = float(message['s3'])
     r1 = float(message['r1'])
     r3 = float(message['r3'])
+    rt = float(message['rt'])
+    sp = float(message['sp'])
+    pmop = float(message['pmop'])
+    s3op = float(message['s3op'])
+    r3op = float(message['r3op'])
+    pass_s3 = float(message['pass_s3'])
+    pass_r3 = float(message['pass_r3'])
+    pmeanline = float(message['pmeanline'])
+    highest_long = float(message['highest_long'])
+    lowest_short = float(message['lowest_short'])
+
+    winrate, lossable, winrate_margin, lossable_margin, win_margin, loss_margin = lossable_calculate(
+        client, symbol)
 
     if minqty > 0:
 
@@ -269,144 +593,208 @@ def order_2():
 
             if 'livebar' in message:
 
+                unRealizedProfitPercentOpenningShort = 0
+                unRealizedProfitOpenningShort = float(
+                    usdt_p_s[0]["unRealizedProfit"])
+                isolatedWalletOpenningShort = float(
+                    usdt_p_s[0]["isolatedWallet"])
+                if isolatedWalletOpenningShort > 0:
+                    unRealizedProfitPercentOpenningShort = unRealizedProfitOpenningShort * \
+                        100 / isolatedWalletOpenningShort
+
+                unRealizedProfitPercentOpenningLong = 0
+                unRealizedProfitOpenningLong = float(
+                    usdt_p_l[0]["unRealizedProfit"])
+                isolatedWalletOpenningLong = float(
+                    usdt_p_l[0]["isolatedWallet"])
+                if isolatedWalletOpenningLong > 0:
+                    unRealizedProfitPercentOpenningLong = unRealizedProfitOpenningLong * \
+                        100 / isolatedWalletOpenningLong
+
                 if positionSide == "LONG":
 
                     # Close
                     quantityclose = 0
                     if abs(float(usdt_p_s[0]['positionAmt'])) > 0:
-                        if int(message['openbar']) >= 1 or float(usdt_p_s[0]['unRealizedProfit']) > 0:
-                            if float(usdt_p_s[0]['unRealizedProfit']) > 0:
-                                unRealizedProfitPercent = 0
-                                unRealizedProfit = float(
-                                    usdt_p_s[0]["unRealizedProfit"])
-                                isolatedWallet = float(
-                                    usdt_p_s[0]["isolatedWallet"])
-                                if isolatedWallet > 0:
-                                    unRealizedProfitPercent = unRealizedProfit * \
-                                        100 / isolatedWallet
-                                quantityclose = abs(
-                                    float(usdt_p_s[0]['positionAmt'])) if unRealizedProfitPercent <= 0.6 else round(minqty, 3)
+                        if openbar >= 1 or float(usdt_p_s[0]['unRealizedProfit']) > 0:
+                            if unRealizedProfitPercentOpenningShort > 0.3:
+                                quantityclose = abs(float(
+                                    usdt_p_s[0]['positionAmt'])) if (unRealizedProfitPercentOpenningShort <= 0.6 or abs(float(
+                                        usdt_p_s[0]['positionAmt'])) < minqty) else round(minqty, 3)
                             else:
-                                if (opentrades*minqty)-0.001 > abs(float(usdt_p_s[0]['positionAmt'])):
-                                    quantityclose = round(minqty, 3) if abs(
-                                        float(usdt_p_l[0]['positionAmt'])) <= (minqty)+0.001 else 0
+                                if (float(usdt_p_s[0]['entryPrice']) - mark_price)*minqty > lossable_margin and lossable >= 75 and (low >= r1 or high <= s1 or float(usdt_p_s[0]['entryPrice']) <= s3):
+                                    quantityclose = abs(float(usdt_p_s[0]['positionAmt'])) if abs(float(
+                                        usdt_p_s[0]['positionAmt'])) < minqty*1.5 else minqty
                                 else:
-                                    if abs(float(usdt_p_s[0]['positionAmt'])) <= minqty+0.001:
-                                        if high >= highest:
-                                            quantityclose = abs(float(
-                                                usdt_p_s[0]['positionAmt']))
-                                    if abs(float(usdt_p_s[0]['positionAmt'])) > minqty+0.001:
-                                        quantityclose = minqty
+                                    if abs(float(usdt_p_s[0]['positionAmt'])) <= minqty*1.5:
+                                        if (unRealizedProfitPercentOpenningLong > abs(unRealizedProfitPercentOpenningShort)*2 and unRealizedProfitPercentOpenningLong > 1.2):
+                                            if not (float(message['rsiMA15']) >= 70 or (float(message['rsiMA15']) >= 65 and float(message['rsi15']) >= 70)):
+                                                quantityclose = abs(
+                                                    float(usdt_p_s[0]['positionAmt']))
+                                    else:
+                                        if opentrades == 3:
+                                            if s3 > pmop or r3 < pmop or float(message['rsi']) <= 30 or (opentrades > 2 and (float(message['rsi']) <= 50 or mark_price < pmeanline)) or (pass_s3 and mark_price < s1) or float(message['rsiMA']) <= 30 or unRealizedProfitPercentOpenningLong >= 1.2:
+                                                if abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty)*1.5:
+                                                    quantityclose = minqty
+                                        if opentrades == 2:
+                                            if abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty)*2.5:
+                                                quantityclose = minqty
+
                             if quantityclose > 0:
                                 client.cancel_open_orders(symbol=symbol)
                                 client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
                                                  type="MARKET", quantity=round(quantityclose, 3))
 
-                    if abs(float(usdt_p_l[0]['positionAmt'])) > opentrades*minqty:
-                        client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
-                                         type="MARKET", quantity=round(minqty, 3))
-
                     # Open
-                    if int(message['openbar']) >= 1 or abs(float(usdt_p_s[0]['positionAmt'])) == 0 or float(usdt_p_s[0]['unRealizedProfit']) > 0 or abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty*2)-0.001:
+                    if openbar >= 1 or abs(float(usdt_p_s[0]['positionAmt'])) == 0 or float(usdt_p_s[0]['unRealizedProfit']) > 0 or abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty)*1.5:
                         if (abs(float(usdt_p_l[0]['positionAmt'])) < opentrades*minqty):
-                            if int(str(message['openbar'])) < 8 or mark_price < float(message['openprice']) or (abs(float(usdt_p_s[0]['positionAmt'])) > 0) or (abs(float(usdt_p_l[0]['positionAmt'])) == 0 and opentrades >= 2) or (abs(float(usdt_p_l[0]['positionAmt'])) == 0 and (float(message['rsi']) <= 30 or float(message['rsi15']) <= 30)):
+                            if ((openbar < 8) or
+                                (rsiMAState == "UP" and float(message['rsi']) > float(message['rsiMA']) and mark_price > openprice) or
+                                (barstatus == "UP" and mark_price < r1 and mark_price > openprice) or
+                                    (abs(float(usdt_p_l[0]['positionAmt'])) == 0 and (float(message['rsi']) <= 30 or float(message['rsiMA15']) <= 30))):
                                 if abs(float(usdt_p_l[0]['positionAmt'])) == 0:
                                     client.cancel_open_orders(symbol=symbol)
-                                    client.new_order(symbol=symbol, positionSide=positionSide, side=(
-                                        "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+                                    client.new_order(
+                                        symbol=symbol, positionSide="LONG", side="BUY", type="MARKET", quantity=round(minqty, 3))
                                 elif (abs(float(usdt_p_l[0]['positionAmt'])) < 0.5*minqty and opentrades >= 1):
                                     leftQty = minqty - \
                                         abs(float(usdt_p_l[0]['positionAmt']))
                                     client.cancel_open_orders(symbol=symbol)
-                                    client.new_order(symbol=symbol, positionSide=positionSide, side=(
-                                        "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
+                                    client.new_order(
+                                        symbol=symbol, positionSide="LONG", side="BUY", type="MARKET", quantity=round(leftQty, 3))
                                 elif (abs(float(usdt_p_l[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
-                                    if float(message['rsi15']) <= 30 or float(message['rsiMA15']) <= 30 or mark_price < s1 or r1 < float(usdt_p_l[0]['entryPrice']):
-                                        client.new_order(symbol=symbol, positionSide=positionSide, side=(
-                                            "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+                                    if ((s3 > pmop) or
+                                        (r3 < pmop) or
+                                        (pass_s3 and mark_price < s1) or
+                                        (float(message['rsi']) <= 30) or
+                                        (float(message['rsiMA']) <= 30) or
+                                        (opentrades > 2 and (float(message['rsi']) <= 50 or mark_price < pmeanline)) or
+                                        (unRealizedProfitPercentOpenningLong >= 1.2) or
+                                            (unRealizedProfitPercentOpenningShort < -0.6 and (pmeanlineState == "UP" or rsiMAState == "UP"))):
+                                        client.new_order(
+                                            symbol=symbol, positionSide="LONG", side="BUY", type="MARKET", quantity=round(minqty, 3))
                                 elif (abs(float(usdt_p_l[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
-                                    if float(message['rsi']) <= 30 or float(message['rsiMA']) <= 30 or mark_price < s3 or r3 < float(usdt_p_l[0]['entryPrice']):
-                                        client.new_order(symbol=symbol, positionSide=positionSide, side=(
-                                            "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+                                    if ((s3 > r3op) or
+                                        (r3 < s3op) or
+                                            (unRealizedProfitPercentOpenningLong >= 1.8)):
+                                        client.new_order(
+                                            symbol=symbol, positionSide="LONG", side="BUY", type="MARKET", quantity=round(minqty, 3))
 
                 if positionSide == "SHORT":
 
                     # Close
                     quantityclose = 0
                     if abs(float(usdt_p_l[0]['positionAmt'])) > 0:
-                        if int(message['openbar']) >= 1 or float(usdt_p_l[0]['unRealizedProfit']) > 0:
-                            if float(usdt_p_l[0]['unRealizedProfit']) > 0:
-                                unRealizedProfitPercent = 0
-                                unRealizedProfit = float(
-                                    usdt_p_l[0]["unRealizedProfit"])
-                                isolatedWallet = float(
-                                    usdt_p_l[0]["isolatedWallet"])
-                                if isolatedWallet > 0:
-                                    unRealizedProfitPercent = unRealizedProfit * \
-                                        100 / isolatedWallet
-                                quantityclose = abs(
-                                    float(usdt_p_l[0]['positionAmt'])) if unRealizedProfitPercent <= 0.6 else round(minqty, 3)
+                        if openbar >= 1 or float(usdt_p_l[0]['unRealizedProfit']) > 0:
+                            if unRealizedProfitPercentOpenningLong > 0.3:
+                                quantityclose = abs(float(
+                                    usdt_p_l[0]['positionAmt'])) if (unRealizedProfitPercentOpenningLong <= 0.6 or abs(float(
+                                        usdt_p_l[0]['positionAmt'])) < minqty) else round(minqty, 3)
                             else:
-                                if (opentrades*minqty)-0.001 > abs(float(usdt_p_l[0]['positionAmt'])):
-                                    quantityclose = round(minqty, 3) if abs(
-                                        float(usdt_p_s[0]['positionAmt'])) <= (minqty)+0.001 else 0
+                                if (mark_price - float(usdt_p_l[0]['entryPrice']))*minqty > lossable_margin and lossable >= 75 and (low >= r1 or high <= s1 or float(usdt_p_l[0]['entryPrice']) >= r3):
+                                    quantityclose = abs(float(usdt_p_l[0]['positionAmt'])) if abs(float(
+                                        usdt_p_l[0]['positionAmt'])) < minqty*1.5 else minqty
                                 else:
-                                    if abs(float(usdt_p_l[0]['positionAmt'])) <= minqty+0.001:
-                                        if low <= lowest:
-                                            quantityclose = abs(float(
-                                                usdt_p_l[0]['positionAmt']))
-                                    if abs(float(usdt_p_l[0]['positionAmt'])) > minqty+0.001:
-                                        quantityclose = minqty
+                                    if abs(float(usdt_p_l[0]['positionAmt'])) <= minqty*1.5:
+                                        if (unRealizedProfitPercentOpenningShort > abs(unRealizedProfitPercentOpenningLong)*2 and unRealizedProfitPercentOpenningShort > 1.2):
+                                            if not (float(message['rsiMA15']) <= 30 or (float(message['rsiMA15']) <= 35 and float(message['rsi15']) <= 30)):
+                                                quantityclose = abs(
+                                                    float(usdt_p_l[0]['positionAmt']))
+                                    else:
+                                        if opentrades == 3:
+                                            if s3 > pmop or r3 < pmop or float(message['rsi']) >= 70 or (opentrades > 2 and (float(message['rsi']) >= 50 or mark_price > pmeanline)) or (pass_r3 and mark_price > r1) or float(message['rsiMA']) >= 70 or unRealizedProfitPercentOpenningShort >= 1.2:
+                                                if abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty)*1.5:
+                                                    quantityclose = minqty
+                                        if opentrades == 2:
+                                            if abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty)*2.5:
+                                                quantityclose = minqty
+
                             if quantityclose > 0:
                                 client.cancel_open_orders(symbol=symbol)
-                                client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
-                                                 type="MARKET", quantity=round(quantityclose, 3))
+                                client.new_order(
+                                    symbol=symbol, positionSide="LONG", side="SELL", type="MARKET", quantity=round(quantityclose, 3))
 
-                    if abs(float(usdt_p_s[0]['positionAmt'])) > opentrades*minqty:
-                        client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
-                                         type="MARKET", quantity=round(minqty, 3))
-
-                    if int(message['openbar']) >= 1 or abs(float(usdt_p_l[0]['positionAmt'])) == 0 or float(usdt_p_l[0]['unRealizedProfit']) > 0 or abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty*2)-0.001:
+                    # OPEN
+                    if openbar >= 1 or abs(float(usdt_p_l[0]['positionAmt'])) == 0 or float(usdt_p_l[0]['unRealizedProfit']) > 0 or abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty)*1.5:
                         if (abs(float(usdt_p_s[0]['positionAmt'])) < opentrades*minqty):
-                            if int(str(message['openbar'])) < 8 or mark_price > float(message['openprice']) or (abs(float(usdt_p_l[0]['positionAmt'])) > 0) or (abs(float(usdt_p_s[0]['positionAmt'])) == 0 and opentrades >= 2) or (abs(float(usdt_p_s[0]['positionAmt'])) == 0 and (float(message['rsi']) >= 70 or float(message['rsi15']) >= 70)):
+                            if ((openbar < 8) or
+                                (rsiMAState == "DOWN" and float(message['rsi']) < float(message['rsiMA']) and mark_price < openprice) or
+                                (barstatus == "DOWN" and mark_price > s1 and mark_price < openprice) or
+                                    (abs(float(usdt_p_s[0]['positionAmt'])) == 0 and (float(message['rsi']) >= 70 or float(message['rsiMA15']) >= 70))):
                                 if abs(float(usdt_p_s[0]['positionAmt'])) == 0:
                                     client.cancel_open_orders(symbol=symbol)
-                                    client.new_order(symbol=symbol, positionSide=positionSide, side=(
-                                        "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+                                    client.new_order(
+                                        symbol=symbol, positionSide="SHORT", side="SELL", type="MARKET", quantity=round(minqty, 3))
                                 elif (abs(float(usdt_p_s[0]['positionAmt'])) < 0.5*minqty and opentrades >= 1):
                                     leftQty = minqty - \
                                         abs(float(usdt_p_s[0]['positionAmt']))
                                     client.cancel_open_orders(symbol=symbol)
-                                    client.new_order(symbol=symbol, positionSide=positionSide, side=(
-                                        "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
+                                    client.new_order(
+                                        symbol=symbol, positionSide="SHORT", side="SELL", type="MARKET", quantity=round(leftQty, 3))
                                 elif (abs(float(usdt_p_s[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
-                                    if float(message['rsi15']) >= 70 or float(message['rsiMA15']) >= 70 or mark_price > r1 or s1 > float(usdt_p_s[0]['entryPrice']):
-                                        client.new_order(symbol=symbol, positionSide=positionSide, side=(
-                                            "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+                                    if ((s3 > pmop) or
+                                        (r3 < pmop) or
+                                        (pass_r3 and mark_price > r1) or
+                                        (float(message['rsi']) >= 70) or
+                                        (float(message['rsiMA']) >= 70) or
+                                        (opentrades > 2 and (float(message['rsi']) >= 50 or mark_price > pmeanline)) or
+                                        (unRealizedProfitPercentOpenningShort >= 1.2) or
+                                            (unRealizedProfitPercentOpenningLong < -0.6 and (pmeanlineState == "DOWN" or rsiMAState == "DOWN"))):
+                                        client.new_order(
+                                            symbol=symbol, positionSide="SHORT", side="SELL", type="MARKET", quantity=round(minqty, 3))
                                 elif (abs(float(usdt_p_s[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
-                                    if float(message['rsi']) >= 70 or float(message['rsiMA']) >= 70 or mark_price > r3 or s3 > float(usdt_p_s[0]['entryPrice']):
-                                        client.new_order(symbol=symbol, positionSide=positionSide, side=(
-                                            "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+                                    if ((s3 > r3op) or
+                                        (r3 < s3op) or
+                                            (unRealizedProfitPercentOpenningShort >= 1.8)):
+                                        client.new_order(
+                                            symbol=symbol, positionSide="SHORT", side="SELL", type="MARKET", quantity=round(minqty, 3))
 
         else:
+
+            unRealizedProfitOpenningLong = float(
+                usdt_p_l[0]["unRealizedProfit"])
+            isolatedWalletOpenningLong = float(usdt_p_l[0]["isolatedWallet"])
+            if isolatedWalletOpenningLong > 0:
+                unRealizedProfitPercentOpenningLong = unRealizedProfitOpenningLong * \
+                    100 / isolatedWalletOpenningLong
+
+            unRealizedProfitOpenningShort = float(
+                usdt_p_s[0]["unRealizedProfit"])
+            isolatedWalletOpenningShort = float(usdt_p_s[0]["isolatedWallet"])
+            if isolatedWalletOpenningShort > 0:
+                unRealizedProfitPercentOpenningShort = unRealizedProfitOpenningShort * \
+                    100 / isolatedWalletOpenningShort
+
+            # CLOSE
             if abs(float(usdt_p_l[0]['positionAmt'])) > 0:
-                if float(usdt_p_l[0]['unRealizedProfit']) > 0 or ('forceclose' in message and float(message['forceclose']) == 1):
+                if (mark_price - float(usdt_p_l[0]['entryPrice']))*minqty > lossable_margin and lossable >= 75:
                     client.cancel_open_orders(symbol=symbol)
                     client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
                                      type="MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
+                else:
+                    if unRealizedProfitOpenningLong >= 0.45 or (unRealizedProfitOpenningLong > 0 and ('forceclose' in message and float(message['forceclose']) == 2)):
+                        client.cancel_open_orders(symbol=symbol)
+                        client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
+                                         type="MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
             if abs(float(usdt_p_s[0]['positionAmt'])) > 0:
-                if float(usdt_p_s[0]['unRealizedProfit']) > 0 or ('forceclose' in message and float(message['forceclose']) == 1):
+                if (float(usdt_p_s[0]['entryPrice']) - mark_price)*minqty > lossable_margin and lossable >= 75:
                     client.cancel_open_orders(symbol=symbol)
                     client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
-                                     type="MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+                                     type="MARKET", quantity=round(minqty, 3))
+                else:
+                    if unRealizedProfitOpenningShort >= 0.45 or (unRealizedProfitOpenningShort > 0 and ('forceclose' in message and float(message['forceclose']) == 1)):
+                        client.cancel_open_orders(symbol=symbol)
+                        client.new_order(symbol=symbol, positionSide="SHORT", side="BUY", type="MARKET", quantity=abs(
+                            float(usdt_p_s[0]['positionAmt'])))
 
-        if abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty*2)-0.001 and abs(float(usdt_p_s[0]['positionAmt'])) < (minqty*3)-0.001 and abs(float(usdt_p_l[0]['positionAmt'])) == 0:
-            if float(message['rsiMA15']) <= 30 or (float(message['rsiMA15']) <= 35 and float(message['rsi15']) <= 30):
+        # OPPOSITE_OPEN
+        if abs(float(usdt_p_s[0]['positionAmt'])) >= (minqty)*1.5 and abs(float(usdt_p_s[0]['positionAmt'])) < (minqty)*2.5 and abs(float(usdt_p_l[0]['positionAmt'])) == 0:
+            if (float(message['rsiMA15']) <= 30 or (float(message['rsiMA15']) <= 35 and float(message['rsi15']) <= 30)) and barstatus == "UP" and low > s3:
                 client.cancel_open_orders(symbol=symbol)
                 client.new_order(symbol=symbol, positionSide="LONG",
                                  side="BUY", type="MARKET", quantity=round(minqty, 3))
-        if abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty*2)-0.001 and abs(float(usdt_p_l[0]['positionAmt'])) < (minqty*3)-0.001 and abs(float(usdt_p_s[0]['positionAmt'])) == 0:
-            if float(message['rsiMA15']) >= 70 or (float(message['rsiMA15']) >= 65 and float(message['rsi15']) >= 70):
+        if abs(float(usdt_p_l[0]['positionAmt'])) >= (minqty)*1.5 and abs(float(usdt_p_l[0]['positionAmt'])) < (minqty)*2.5 and abs(float(usdt_p_s[0]['positionAmt'])) == 0:
+            if (float(message['rsiMA15']) >= 70 or (float(message['rsiMA15']) >= 65 and float(message['rsi15']) >= 70)) and barstatus == "DOWN" and high < r3:
                 client.cancel_open_orders(symbol=symbol)
                 client.new_order(symbol=symbol, positionSide="SHORT",
                                  side="SELL", type="MARKET", quantity=round(minqty, 3))
@@ -414,88 +802,76 @@ def order_2():
     current_milliseconds = int(time.time() * 1000)
     order_history = client.get_all_orders(
         symbol=symbol, startTime=current_milliseconds-(1000*60*60*24))
-    new_orders = []
+    new_orders_long = []
+    new_orders_short = []
     filled_orders = []
 
     minute_limit = 5
     max_profit_check = 0.6
-    unRealizedProfitPercentLongCheck = 0
-    unRealizedProfitPercentShortCheck = 0
     unRealizedProfitPercentLong = 0
     unRealizedProfitPercentShort = 0
     openorderLong = abs(float(usdt_p_l[0]["positionAmt"])) > 0
     openorderShort = abs(float(usdt_p_s[0]["positionAmt"])) > 0
+    tp_long = 0
+    tp_short = 0
+    filled_order_long = 0
 
     # LONG_STOP_PRICE
-    if isinstance(order_history, list) and len(order_history) > 0 and openorderLong:
-        new_orders = [
-            order for order in order_history if ((order.get("status") == "NEW" or order.get("status") == "CANCELED") and order.get("positionSide") == "LONG")]
-        filled_orders = [
-            order for order in order_history if (order.get("status") == "FILLED" and order.get("positionSide") == "LONG")]
-        if len(filled_orders) > 0:
-            if len(filled_orders) > 0 and current_milliseconds - filled_orders[-1]["time"] > (minute_limit*60*1000):
+    if openorderLong:
+        if isinstance(order_history, list) and len(order_history) > 0:
+            new_orders_long = [
+                order for order in order_history if ((order.get("status") == "NEW" or order.get("status") == "CANCELED") and order.get("positionSide") == "LONG")]
+            filled_orders = [
+                order for order in order_history if (order.get("status") == "FILLED" and order.get("positionSide") == "LONG")]
+            filled_order_long = filled_orders
+            if len(filled_orders) > 0:
+                if len(filled_orders) > 0 and current_milliseconds - filled_orders[-1]["time"] > (minute_limit*60*1000):
+                    unRealizedProfit = float(usdt_p_l[0]["unRealizedProfit"])
+                    isolatedWallet = float(usdt_p_l[0]["isolatedWallet"])
+                    if isolatedWallet > 0:
+                        unRealizedProfitPercentLong = unRealizedProfit * \
+                            100 / isolatedWallet
+            else:
                 unRealizedProfit = float(usdt_p_l[0]["unRealizedProfit"])
                 isolatedWallet = float(usdt_p_l[0]["isolatedWallet"])
                 if isolatedWallet > 0:
                     unRealizedProfitPercentLong = unRealizedProfit * \
                         100 / isolatedWallet
+        else:
+            unRealizedProfit = float(usdt_p_l[0]["unRealizedProfit"])
+            isolatedWallet = float(usdt_p_l[0]["isolatedWallet"])
+            unRealizedProfitPercentLong = unRealizedProfit * \
+                100 / isolatedWallet
 
     # SHORT_STOP_PRICE
-    if isinstance(order_history, list) and len(order_history) > 0 and openorderShort:
-        new_orders = [
-            order for order in order_history if ((order.get("status") == "NEW" or order.get("status") == "CANCELED") and order.get("positionSide") == "SHORT")]
-        filled_orders = [
-            order for order in order_history if (order.get("status") == "FILLED" and order.get("positionSide") == "SHORT")]
-        if len(filled_orders) > 0:
-            if len(filled_orders) > 0 and current_milliseconds - filled_orders[-1]["time"] > (minute_limit*60*1000):
+    if openorderShort:
+        if isinstance(order_history, list) and len(order_history) > 0:
+            new_orders_short = [
+                order for order in order_history if ((order.get("status") == "NEW" or order.get("status") == "CANCELED") and order.get("positionSide") == "SHORT")]
+            filled_orders = [
+                order for order in order_history if (order.get("status") == "FILLED" and order.get("positionSide") == "SHORT")]
+            if len(filled_orders) > 0:
+                if len(filled_orders) > 0 and current_milliseconds - filled_orders[-1]["time"] > (minute_limit*60*1000):
+                    unRealizedProfit = float(usdt_p_s[0]["unRealizedProfit"])
+                    isolatedWallet = float(usdt_p_s[0]["isolatedWallet"])
+                    if isolatedWallet > 0:
+                        unRealizedProfitPercentShort = unRealizedProfit * \
+                            100 / isolatedWallet
+            else:
                 unRealizedProfit = float(usdt_p_s[0]["unRealizedProfit"])
                 isolatedWallet = float(usdt_p_s[0]["isolatedWallet"])
                 if isolatedWallet > 0:
                     unRealizedProfitPercentShort = unRealizedProfit * \
                         100 / isolatedWallet
+        else:
+            unRealizedProfit = float(usdt_p_s[0]["unRealizedProfit"])
+            isolatedWallet = float(usdt_p_s[0]["isolatedWallet"])
+            if isolatedWallet > 0:
+                unRealizedProfitPercentShort = unRealizedProfit * \
+                    100 / isolatedWallet
 
-    if openorderLong:
-        unRealizedProfit = float(usdt_p_l[0]["unRealizedProfit"])
-        isolatedWallet = float(usdt_p_l[0]["isolatedWallet"])
-        if isolatedWallet > 0:
-            unRealizedProfitPercentLongCheck = unRealizedProfit * \
-                100 / isolatedWallet
-    if openorderShort:
-        unRealizedProfit = float(usdt_p_s[0]["unRealizedProfit"])
-        isolatedWallet = float(usdt_p_s[0]["isolatedWallet"])
-        if isolatedWallet > 0:
-            unRealizedProfitPercentShortCheck = unRealizedProfit * \
-                100 / isolatedWallet
-
-    if unRealizedProfitPercentLong > max_profit_check:
-        if len(new_orders) > 0 and new_orders[-1]['status'] == "NEW":
-            last_stop_price = float(new_orders[-1]['stopPrice'])
-            closeprice = (float(usdt_p_l[0]['markPrice']) +
-                          float(usdt_p_l[0]['entryPrice']))*0.5
-            if closeprice > last_stop_price:
-                client.cancel_open_orders(symbol=symbol)
-                client.new_order(symbol=symbol, positionSide="LONG", side="SELL", stopPrice=int(closeprice),
-                                 type="STOP_MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
-        elif len(new_orders) == 0 or new_orders[-1]['status'] == "CANCELED":
-            closeprice = (float(usdt_p_l[0]['markPrice']) +
-                          float(usdt_p_l[0]['entryPrice']))*0.5
-            client.new_order(symbol=symbol, positionSide="LONG", side="SELL", stopPrice=int(closeprice),
-                             type="STOP_MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
-
-    if unRealizedProfitPercentShort > max_profit_check:
-        if len(new_orders) > 0 and new_orders[-1]['status'] == "NEW":
-            last_stop_price = float(new_orders[-1]['stopPrice'])
-            closeprice = (float(usdt_p_s[0]['markPrice']) +
-                          float(usdt_p_s[0]['entryPrice']))*0.5
-            if closeprice < last_stop_price:
-                client.cancel_open_orders(symbol=symbol)
-                client.new_order(symbol=symbol, positionSide="SHORT", side="BUY", stopPrice=int(closeprice),
-                                 type="STOP_MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
-        elif len(new_orders) == 0 or new_orders[-1]['status'] == "CANCELED":
-            closeprice = (float(usdt_p_s[0]['markPrice']) +
-                          float(usdt_p_s[0]['entryPrice']))*0.5
-            client.new_order(symbol=symbol, positionSide="SHORT", side="BUY", stopPrice=int(closeprice),
-                             type="STOP_MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+    tp_order(openbar, mark_price, openprice, close, max_profit_check, pmeanline, unRealizedProfitPercentLong, unRealizedProfitPercentShort, new_orders_long,
+             new_orders_short, usdt_p_l, usdt_p_s, low, high, r3, s3, r1, s1, highest_long, lowest_short, client, symbol)
 
     return {
         'balance': usdt_b,
@@ -504,9 +880,134 @@ def order_2():
         'long': usdt_p_l,
         'mark_price': mark_price,
         'minqty': minqty,
-        'unRealizedProfitPercentLongCheck': unRealizedProfitPercentLongCheck,
-        'unRealizedProfitPercentShortCheck': unRealizedProfitPercentShortCheck,
+        'TPL': unRealizedProfitPercentLong > max_profit_check and low <= r3,
+        'TPS': unRealizedProfitPercentShort > max_profit_check and high >= s3,
+        'TPP_L': tp_long,
+        'TPP_S': tp_short,
+        'winrate': winrate,
+        'lossable': lossable,
+        'win_margin': win_margin,
+        'loss_margin': loss_margin,
+        'unRealizedProfitOpenningShort': unRealizedProfitOpenningShort,
+        'unRealizedProfitOpenningLong': unRealizedProfitOpenningLong,
+        'winrate_margin': winrate_margin,
+        'lossable_margin': lossable_margin
     }
+
+
+def tp_order(openbar, mark_price, openprice, close, max_profit_check, pmeanline, unRealizedProfitPercentLong, unRealizedProfitPercentShort, new_orders_long, new_orders_short, usdt_p_l, usdt_p_s, low, high, r3, s3, r1, s1, highest_long, lowest_short, client: UMFutures, symbol="ETHUSDT"):
+    closeprice = 0
+    # LONG
+    if ((unRealizedProfitPercentLong > max_profit_check and (low <= r3 and mark_price < openprice)) or
+            (unRealizedProfitPercentLong > 0.1 and float(usdt_p_l[0]['entryPrice']) > r1 and (mark_price < openprice or close < openprice)) or
+            (unRealizedProfitPercentLong > 0.1 and float(usdt_p_l[0]['entryPrice']) > r3 and openbar >= 8)):
+        if len(new_orders_long) > 0 and new_orders_long[-1]['status'] == "NEW":
+            last_stop_price = float(new_orders_long[-1]['stopPrice'])
+            closeprice_by_mark = (float(usdt_p_l[0]['markPrice']) +
+                                  float(usdt_p_l[0]['entryPrice']))*0.5
+            closeprice_by_highest = (highest_long +
+                                     float(usdt_p_l[0]['entryPrice']))*0.5
+            closeprice = closeprice_by_highest if (
+                closeprice_by_highest > closeprice_by_mark and mark_price > closeprice_by_highest) else closeprice_by_mark
+            tp_long = closeprice
+            if closeprice > last_stop_price and mark_price > closeprice:
+                client.cancel_open_orders(symbol=symbol)
+                client.new_order(symbol=symbol, positionSide="LONG", side="SELL", stopPrice=int(closeprice),
+                                 type="STOP_MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
+        elif len(new_orders_long) == 0 or new_orders_long[-1]['status'] == "CANCELED":
+            closeprice_by_mark = (float(usdt_p_l[0]['markPrice']) +
+                                  float(usdt_p_l[0]['entryPrice']))*0.5
+            closeprice_by_highest = (highest_long +
+                                     float(usdt_p_l[0]['entryPrice']))*0.5
+            closeprice = closeprice_by_highest if (
+                closeprice_by_highest > closeprice_by_mark and mark_price > closeprice_by_highest) else closeprice_by_mark
+            tp_long = closeprice
+            if mark_price > closeprice:
+                client.cancel_open_orders(symbol=symbol)
+                client.new_order(symbol=symbol, positionSide="LONG", side="SELL", stopPrice=int(closeprice),
+                                 type="STOP_MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
+    if low > r3 and unRealizedProfitPercentLong > 0.6 and not (mark_price < openprice):
+        client.cancel_open_orders(symbol=symbol)
+
+    # SAVE REVERSE LONG
+    if unRealizedProfitPercentLong >= 0.15 and unRealizedProfitPercentLong < 0.6 and (len(new_orders_long) == 0 or new_orders_long[-1]['status'] == "CANCELED"):
+        if high > pmeanline and float(usdt_p_l[0]['entryPrice']) < pmeanline:
+            closeprice = float(usdt_p_l[0]['entryPrice']) * 1.015
+            if mark_price > closeprice:
+                client.cancel_open_orders(symbol=symbol)
+                client.new_order(symbol=symbol, positionSide="LONG", side="SELL", stopPrice=int(closeprice),
+                                 type="STOP_MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
+
+    # SHORT
+    if ((unRealizedProfitPercentShort > max_profit_check and (high >= s3 or mark_price > openprice)) or
+            (unRealizedProfitPercentShort > 0.1 and float(usdt_p_s[0]['entryPrice']) < s1 and (mark_price > openprice or close > openprice)) or
+            (unRealizedProfitPercentShort > 0.1 and float(usdt_p_s[0]['entryPrice']) < s3 and openbar >= 8)):
+        if len(new_orders_short) > 0 and new_orders_short[-1]['status'] == "NEW":
+            last_stop_price = float(new_orders_short[-1]['stopPrice'])
+            closeprice_by_mark = (float(usdt_p_s[0]['markPrice']) +
+                                  float(usdt_p_s[0]['entryPrice']))*0.5
+            closeprice_by_lowest = (lowest_short +
+                                    float(usdt_p_s[0]['entryPrice']))*0.5
+            closeprice = closeprice_by_lowest if (
+                closeprice_by_lowest < closeprice_by_mark and mark_price < closeprice_by_lowest) else closeprice_by_mark
+            tp_short = closeprice
+            if closeprice < last_stop_price and mark_price < closeprice:
+                client.cancel_open_orders(symbol=symbol)
+                client.new_order(symbol=symbol, positionSide="SHORT", side="BUY", stopPrice=int(closeprice),
+                                 type="STOP_MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+        elif len(new_orders_short) == 0 or new_orders_short[-1]['status'] == "CANCELED":
+            closeprice_by_mark = (float(usdt_p_s[0]['markPrice']) +
+                                  float(usdt_p_s[0]['entryPrice']))*0.5
+            closeprice_by_lowest = (
+                lowest_short + float(usdt_p_s[0]['entryPrice']))*0.5
+            closeprice = closeprice_by_lowest if (
+                closeprice_by_lowest < closeprice_by_mark and mark_price < closeprice_by_lowest) else closeprice_by_mark
+            tp_short = closeprice
+            if mark_price < closeprice:
+                client.cancel_open_orders(symbol=symbol)
+                client.new_order(symbol=symbol, positionSide="SHORT", side="BUY", stopPrice=int(closeprice),
+                                 type="STOP_MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+    if high < s3 and unRealizedProfitPercentShort > 0.6 and not (mark_price > openprice):
+        client.cancel_open_orders(symbol=symbol)
+
+    # SAVE REVERSE SHORT
+    if unRealizedProfitPercentShort >= 0.15 and unRealizedProfitPercentShort < 0.6 and (len(new_orders_short) == 0 or new_orders_short[-1]['status'] == "CANCELED"):
+        if low < pmeanline and float(usdt_p_s[0]['entryPrice']) > pmeanline:
+            closeprice = float(usdt_p_s[0]['entryPrice']) * 0.985
+            if mark_price < closeprice:
+                client.cancel_open_orders(symbol=symbol)
+                client.new_order(symbol=symbol, positionSide="SHORT", side="BUY", stopPrice=int(closeprice),
+                                 type="STOP_MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+
+
+def lossable_calculate(client: UMFutures, symbol="ETHUSDT"):
+
+    positions = client.get_account_trades(symbol=symbol, limit=1000)
+    positions = list(filter(lambda x: float(x['realizedPnl']) != 0, positions))
+    win_margin = 0
+    loss_margin = 0
+    wincount = 0
+    losscount = 0
+    winrate = 0
+    lossable = 0
+    winrate_margin = 0
+    lossable_margin = 0
+
+    for p in reversed(positions):
+        if float(p['realizedPnl']) > 0:
+            wincount += 1
+            win_margin += float(p['realizedPnl'])
+        elif float(p['realizedPnl']) < 0:
+            losscount += 1
+            loss_margin += -(float(p['realizedPnl']))
+
+    if positions.__len__() >= 3:
+        winrate = (wincount*100)/(wincount+losscount)
+        lossable = (wincount*100)/(wincount+losscount+1)
+        winrate_margin = (win_margin*100)/(win_margin+loss_margin)
+        lossable_margin = -((win_margin/3) - loss_margin)  # 75% win-margin
+
+    return winrate, lossable, winrate_margin, lossable_margin, win_margin, loss_margin
 
 
 @app.route("/order", methods=["POST"])
