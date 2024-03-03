@@ -264,3 +264,198 @@
 #                     client.cancel_open_orders(symbol=symbol)
 #                     client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
 #                                      type="MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+
+# @app.route("/order", methods=["POST"])
+# def order():
+
+#     request = app.current_request
+#     message = request.json_body
+
+#     api_use = None
+#     data = ref_key.get()
+#     data = list(filter(lambda x: x != None, data))
+#     for obj in data:
+#         if 'key' in obj and obj['key'] == message['key']:
+#             api_use = obj
+#             break
+
+#     client = UMFutures(api_use['key'], api_use['secret'])
+
+#     leverage = 1
+#     symbol = message['symbol']
+#     balance = client.balance()
+#     position_risk = client.get_position_risk(symbol=symbol)
+#     usdt_b = list(filter(lambda x: (x['asset'] == "USDT") if "USDT" in symbol else (x['asset'] == "BUSD"), balance))[
+#         0]['balance']
+
+#     usdt_p_l = list(filter(
+#         lambda x: x['symbol'] == symbol and x['positionSide'] == "LONG", position_risk))
+#     usdt_p_s = list(filter(
+#         lambda x: x['symbol'] == symbol and x['positionSide'] == "SHORT", position_risk))
+
+#     mark_price = 0
+#     if len(usdt_p_l) > 0:
+#         mark_price = float(message['close']) if ('close' in message and float(
+#             usdt_p_l[0]['markPrice']) == 0) else float(usdt_p_l[0]['markPrice'])
+#     elif len(usdt_p_s) > 0:
+#         mark_price = float(message['close']) if ('close' in message and float(
+#             usdt_p_s[0]['markPrice']) == 0) else float(usdt_p_s[0]['markPrice'])
+
+#     minqty = 0 if mark_price == 0 else round(
+#         (float(usdt_b)*0.3) / (mark_price/leverage), 3)
+
+#     opentrades = int(str(message['opentrades']))
+#     isOpen = True
+
+#     if minqty > 0:
+
+#         if opentrades > 0:
+
+#             positionSide = message['positionSide']
+#             barstatus = message['barstatus']
+#             # open = float(str(message['open']))
+#             # openbar = int(str(message['openbar']))
+
+#             if 's3' in message:
+
+#                 s3 = float(str(message['s3']))
+#                 s1 = float(str(message['s1']))
+#                 r3 = float(str(message['r3']))
+#                 r1 = float(str(message['r1']))
+
+#                 if positionSide == "LONG":
+
+#                     if abs(float(usdt_p_s[0]['positionAmt'])) > 0:
+#                         client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
+#                                          type="MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+
+#                     if (abs(float(usdt_p_l[0]['positionAmt'])) < opentrades*minqty) and barstatus == "UP":
+#                         if abs(float(usdt_p_l[0]['positionAmt'])) == 0:
+#                             client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                 "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                         elif (abs(float(usdt_p_l[0]['positionAmt'])) < 0.5*minqty and opentrades >= 1):
+#                             if mark_price <= s1:
+#                                 leftQty = minqty - \
+#                                     abs(float(usdt_p_l[0]['positionAmt']))
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
+#                         elif (abs(float(usdt_p_l[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
+#                             if mark_price <= s1:
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                         elif (abs(float(usdt_p_l[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
+#                             if mark_price <= s3:
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+
+#                 if positionSide == "SHORT":
+
+#                     if abs(float(usdt_p_l[0]['positionAmt'])) > 0:
+#                         client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
+#                                          type="MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
+
+#                     if (abs(float(usdt_p_s[0]['positionAmt'])) < opentrades*minqty) and barstatus == "DOWN":
+#                         if abs(float(usdt_p_s[0]['positionAmt'])) == 0:
+#                             client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                 "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                         elif (abs(float(usdt_p_s[0]['positionAmt'])) < 0.5*minqty and opentrades >= 1):
+#                             if mark_price >= r1:
+#                                 leftQty = minqty - \
+#                                     abs(float(usdt_p_s[0]['positionAmt']))
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
+#                         elif (abs(float(usdt_p_s[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
+#                             if mark_price >= r1:
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                         elif (abs(float(usdt_p_s[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
+#                             if mark_price >= r3:
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+
+#             elif 'opp_pfiboh' in message and not ('livebar' in message):
+
+#                 opp_pfiboh = int(str(message['opp_pfiboh']))
+#                 opp_pfibol = int(str(message['opp_pfibol']))
+#                 p_fibol = int(str(message['p_fibol']))
+#                 p_fiboh = int(str(message['p_fiboh']))
+#                 lp_fibol = int(str(message['lp_fibol']))
+#                 hp_fibol = int(str(message['hp_fibol']))
+#                 lp_fiboh = int(str(message['lp_fiboh']))
+#                 hp_fiboh = int(str(message['hp_fiboh']))
+#                 open = float(str(message['open']))
+
+#                 if positionSide == "LONG":
+
+#                     # Close
+#                     if abs(float(usdt_p_s[0]['positionAmt'])) > 0:
+#                         client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
+#                                          type="MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+#                     # Open
+#                     cc1 = p_fibol - lp_fibol >= 2 and opp_pfibol - lp_fibol >= 2
+#                     cc2 = lp_fiboh - p_fiboh >= 2 and lp_fiboh - opp_pfiboh >= 2
+#                     cc3 = p_fibol - lp_fibol >= 3 and opp_pfibol - lp_fibol >= 3
+#                     cc4 = lp_fiboh - p_fiboh >= 3 and lp_fiboh - opp_pfiboh >= 3
+#                     fcc = mark_price > open
+
+#                     if (abs(float(usdt_p_l[0]['positionAmt'])) < opentrades*minqty) and barstatus == "UP":
+#                         if abs(float(usdt_p_l[0]['positionAmt'])) == 0:
+#                             client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                 "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                         elif (abs(float(usdt_p_l[0]['positionAmt'])) < 0.5*minqty and opentrades >= 1):
+#                             if fcc and (cc1 or cc2):
+#                                 leftQty = minqty - \
+#                                     abs(float(usdt_p_l[0]['positionAmt']))
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
+#                         elif (abs(float(usdt_p_l[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
+#                             if fcc and (cc1 or cc2):
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                         elif (abs(float(usdt_p_l[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
+#                             if fcc and (cc3 or cc4):
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+
+#                 if positionSide == "SHORT":
+
+#                     # Close
+#                     if abs(float(usdt_p_l[0]['positionAmt'])) > 0:
+#                         client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
+#                                          type="MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
+
+#                     # Open
+#                     cc1 = hp_fibol - p_fibol >= 2 and hp_fibol - opp_pfibol >= 2
+#                     cc2 = p_fiboh - hp_fiboh >= 2 and opp_pfiboh - hp_fiboh >= 2
+#                     cc3 = hp_fibol - p_fibol >= 3 and hp_fibol - opp_pfibol >= 3
+#                     cc4 = p_fiboh - hp_fiboh >= 3 and opp_pfiboh - hp_fiboh >= 3
+#                     fcc = mark_price < open
+
+#                     if (abs(float(usdt_p_s[0]['positionAmt'])) < opentrades*minqty) and barstatus == "DOWN":
+#                         if abs(float(usdt_p_s[0]['positionAmt'])) == 0:
+#                             client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                 "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                         elif (abs(float(usdt_p_s[0]['positionAmt'])) < 0.5*minqty and opentrades >= 1):
+#                             if fcc and (cc1 or cc2):
+#                                 leftQty = minqty - \
+#                                     abs(float(usdt_p_s[0]['positionAmt']))
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(leftQty, 3))
+#                         elif (abs(float(usdt_p_s[0]['positionAmt'])) < 1.5*minqty and opentrades >= 2):
+#                             if fcc and (cc1 or cc2):
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+#                         elif (abs(float(usdt_p_s[0]['positionAmt'])) < 2.5*minqty and opentrades >= 3):
+#                             if fcc and (cc3 or cc4):
+#                                 client.new_order(symbol=symbol, positionSide=positionSide, side=(
+#                                     "BUY" if positionSide == "LONG" else "SELL"), type="MARKET", quantity=round(minqty, 3))
+
+#         else:
+#             if abs(float(usdt_p_l[0]['positionAmt'])) > 0 and float(usdt_p_l[0]['unRealizedProfit']) > 0:
+#                 client.new_order(symbol=symbol, positionSide="LONG", side="SELL",
+#                                  type="MARKET", quantity=abs(float(usdt_p_l[0]['positionAmt'])))
+#             if abs(float(usdt_p_s[0]['positionAmt'])) > 0 and float(usdt_p_s[0]['unRealizedProfit']) > 0:
+#                 client.new_order(symbol=symbol, positionSide="SHORT", side="BUY",
+#                                  type="MARKET", quantity=abs(float(usdt_p_s[0]['positionAmt'])))
+
+#     return {'symbol': symbol, 'short': usdt_p_s[0], 'long': usdt_p_l[0], 'mark_price': mark_price, 'minqty': minqty}

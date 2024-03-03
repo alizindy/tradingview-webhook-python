@@ -1,2 +1,3 @@
 requests
 binance-futures-connector
+firebase_admin
